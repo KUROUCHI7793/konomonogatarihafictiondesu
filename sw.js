@@ -1,4 +1,4 @@
-const C = 'bookshelf-v2';
+const C = 'bookshelf-v3';
 const ASSETS = [
   './',
   './index.html',

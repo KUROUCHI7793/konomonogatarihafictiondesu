@@ -80,6 +80,10 @@ table.t th:first-child,table.t td:first-child{text-align:left}
 .ser{padding:9px 0;border-bottom:1px solid var(--line)}
 .ser:last-child{border-bottom:0}
 .ser .sn{font-weight:700}
+.covrow{display:flex;gap:12px;align-items:center}
+.covprev{width:70px;height:100px;flex:none;background:var(--bg);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden}
+.covprev img{width:100%;height:100%;object-fit:cover}
+.covbtns{display:flex;flex-direction:column;align-items:flex-start}
 </style>
 </head>
 <body>
@@ -125,10 +129,101 @@ const parsePrice=v=>{const n=pn(v);return n==null?'':n};
 const hasPrice=b=>b.price!==''&&b.price!=null;
 const volCmp=(a,b)=>((parseFloat(a.volume)||0)-(parseFloat(b.volume)||0))||(a.volume||'').localeCompare(b.volume||'','ja');
 
+/* ---------- 表紙画像（端末内のIndexedDBに保存） ---------- */
+let covers={},curLocal='',refreshCov=()=>{};
+const coverSrc=b=>covers[b.id]||b.cover||'';
+let _idb=null;
+const idbOpen=()=>_idb||(_idb=new Promise((res,rej)=>{
+  if(!window.indexedDB)return rej(new Error('no idb'));
+  const r=indexedDB.open('mybookshelf_covers',1);
+  r.onupgradeneeded=()=>r.result.createObjectStore('c');
+  r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);
+}));
+const idbTx=async fn=>{const d=await idbOpen();return new Promise((res,rej)=>{const t=d.transaction('c','readwrite');fn(t.objectStore('c'));t.oncomplete=()=>res();t.onerror=t.onabort=()=>rej(t.error)})};
+const covPut=(id,v)=>idbTx(s=>s.put(v,id));
+const covDel=id=>idbTx(s=>s.delete(id));
+const covClear=()=>idbTx(s=>s.clear());
+async function covAll(){
+  const d=await idbOpen();
+  return new Promise((res,rej)=>{
+    const m={};const r=d.transaction('c').objectStore('c').openCursor();
+    r.onsuccess=()=>{const c=r.result;if(c){m[c.key]=c.value;c.continue()}else res(m)};
+    r.onerror=()=>rej(r.error);
+  });
+}
+function resizeToDataURL(src,max=320){
+  return new Promise((res,rej)=>{
+    const i=new Image();
+    i.onload=()=>{
+      const w=i.naturalWidth,h=i.naturalHeight;if(!w||!h)return rej(new Error('size'));
+      const k=Math.min(1,max/Math.max(w,h));
+      const c=document.createElement('canvas');c.width=Math.max(1,Math.round(w*k));c.height=Math.max(1,Math.round(h*k));
+      c.getContext('2d').drawImage(i,0,0,c.width,c.height);
+      try{res(c.toDataURL('image/jpeg',0.8))}catch(e){rej(e)}
+    };
+    i.onerror=()=>rej(new Error('load'));i.src=src;
+  });
+}
+const probe=url=>new Promise(r=>{
+  const i=new Image();const t=setTimeout(()=>r(null),8000);
+  i.onload=()=>{clearTimeout(t);r(i.naturalWidth>40&&i.naturalHeight>40?url:null)};
+  i.onerror=()=>{clearTimeout(t);r(null)};i.src=url;
+});
+async function findCover(isbn){
+  try{
+    const j=await fetch('https://api.openbd.jp/v1/get?isbn='+isbn).then(r=>r.json());
+    const c=j&&j[0]&&j[0].summary&&j[0].summary.cover;
+    if(c){const u=await probe(c);if(u)return u}
+  }catch(e){}
+  const ndl=await probe(`https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg`);if(ndl)return ndl;
+  try{
+    const r=await fetch('https://www.googleapis.com/books/v1/volumes?q=isbn:'+isbn).then(r=>r.json());
+    const l=r.items&&r.items[0]&&r.items[0].volumeInfo&&r.items[0].volumeInfo.imageLinks;
+    const u=l&&(l.thumbnail||l.smallThumbnail);
+    if(u){const p=await probe(u.replace('http://','https://'));if(p)return p}
+  }catch(e){}
+  return (await probe(`https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg?default=false`))||'';
+}
+// 取得できた表紙は、可能なら端末に保存（元の画像が消えても、オフラインでも表示できる）。保存できない場合はURL参照のまま。
+async function cacheRemote(id,url){
+  try{
+    const r=await fetch(url,{mode:'cors'});if(!r.ok)return;
+    const bl=await r.blob();if(!/^image\//.test(bl.type))return;
+    const u=URL.createObjectURL(bl);
+    let d;try{d=await resizeToDataURL(u)}finally{URL.revokeObjectURL(u)}
+    if(!db.books.some(b=>b.id===id)||covers[id])return;
+    covers[id]=d;await covPut(id,d);
+    if(view==='shelf')render();
+  }catch(e){}
+}
+
+/* ---------- 共有（書名・著者名・出版社・ISBNのみ） ---------- */
+const b64u={
+  enc:s=>{let bin='';new TextEncoder().encode(s).forEach(c=>bin+=String.fromCharCode(c));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')},
+  dec:s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');s+='='.repeat((4-s.length%4)%4);return new TextDecoder().decode(Uint8Array.from(atob(s),c=>c.charCodeAt(0)))}
+};
+const shareLink=o=>location.href.split('#')[0].split('?')[0]+'#share='+b64u.enc(JSON.stringify({i:o.isbn,t:o.title,a:o.author,p:o.publisher}));
+const shareText=o=>`📚 ${o.title||'(書名なし)'}\n著者: ${o.author||'-'}\n出版社: ${o.publisher||'-'}\nISBN: ${o.isbn||'-'}\n\nマイ本棚に登録: ${shareLink(o)}`;
+function parseShare(str){
+  const m=/share=([A-Za-z0-9_-]+)/.exec(str||'');if(!m)return null;
+  try{
+    const o=JSON.parse(b64u.dec(m[1]));const s=v=>typeof v==='string'?v.slice(0,300):'';
+    return {isbn:s(o.i).replace(/[^0-9Xx]/g,'').slice(0,13),title:s(o.t),author:s(o.a),publisher:s(o.p)};
+  }catch(e){return null}
+}
+const isStandalone=()=>!!(navigator.standalone||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches));
+async function shareBook(o){
+  if(!o.title&&!o.isbn){alert('書名かISBNを入力してください');return}
+  const text=shareText(o);
+  if(navigator.share){try{await navigator.share({title:o.title||'本の共有',text});return}catch(e){if(e&&e.name==='AbortError')return}}
+  try{await navigator.clipboard.writeText(text);alert('共有用のテキストをコピーしました。メッセージアプリなどに貼り付けてください。')}
+  catch(e){prompt('コピーして共有してください',text)}
+}
+
 /* ---------- 共通 ---------- */
 function cardHtml(b){
   const f=db.folders.find(x=>x.id===b.folder);
-  return `<div class="card book" data-id="${b.id}">${b.cover?`<img src="${esc(b.cover)}" loading="lazy" onerror="this.outerHTML='<div class=ph>📕</div>'">`:'<div class="ph">📕</div>'}
+  return `<div class="card book" data-id="${b.id}">${coverSrc(b)?`<img src="${esc(coverSrc(b))}" loading="lazy" onerror="this.outerHTML='<div class=ph>📕</div>'">`:'<div class="ph">📕</div>'}
   <div class="bi"><div class="bt">${esc(b.title||'(無題)')}</div>
   <div class="bs">${esc(b.author)}${b.publisher?' / '+esc(b.publisher):''}${b.pubdate?' ('+esc(b.pubdate)+')':''}</div>
   <div class="bm">${b.series?`<span class="badge s">📚 ${esc(b.series)}${b.volume?' #'+esc(b.volume):''}</span>`:''}${b.ndc?`<span class="badge">NDC ${esc(b.ndc)}</span>`:''}${f?`<span class="badge f">${esc(f.name)}</span>`:''}${b.rating?`<span class="stars">${'★'.repeat(b.rating)}</span>`:''}</div>
@@ -291,7 +386,7 @@ function rSettings(){
   const avg=rated.length?(rated.reduce((a,b)=>a+b.rating,0)/rated.length).toFixed(2):'-';
   $('#main').innerHTML=`<h1>設定</h1>
   <h2>統計</h2><div class="card">登録冊数: <b>${db.books.length}</b>冊<br>読了(読了日あり): <b>${read.length}</b>冊（${y}年: <b>${thisYear}</b>冊）<br>平均評価: <b>${avg}</b></div>
-  <h2>バックアップ</h2><div class="card"><p class="note" style="margin-top:0">データはこのiPhoneの中だけに保存されています。機種変更や万一に備え、定期的に書き出してください（「ファイル」アプリやiCloud Driveに保存すると安心です）。</p>
+  <h2>バックアップ</h2><div class="card"><p class="note" style="margin-top:0">データはこのiPhoneの中だけに保存されています。機種変更や万一に備え、定期的に書き出してください（「ファイル」アプリやiCloud Driveに保存すると安心です）。表紙画像も含まれるため、冊数が多いとファイルが大きくなります。</p>
   <button class="fill" data-act="export">データを書き出す (JSON)</button>
   <button data-act="csv">CSVで書き出す（Excel等で見る用）</button>
   <p class="note">CSVは閲覧・集計用です。バックアップの復元にはJSONを使ってください。</p>
@@ -304,10 +399,11 @@ let cur,curLabels,curRating,scanner=null;
 function dateRow(id,label,val){
   return `<label>${label}</label><div class="drow"><input type="date" id="${id}" value="${val||''}"><button type="button" data-today="${id}">今日</button><button type="button" data-clear="${id}">✕</button></div><div class="dfmt" id="${id}_f">${fmt(val)}</div>`;
 }
-function openEdit(id){
+function openEdit(id,prefill){
   const b=id?db.books.find(x=>x.id===id):null;
   cur=b?{...b}:{id:null,isbn:'',title:'',author:'',publisher:'',pubdate:'',ndc:'',cover:'',folder:filterFolder!=='all'?filterFolder:'f1',bought:'',place:'',start:'',end:'',rating:0,memo:'',labels:[],price:'',series:'',volume:'',added:Date.now()};
   curLabels=[...(cur.labels||[])];curRating=cur.rating||0;
+  curLocal=(cur.id&&covers[cur.id])||'';
   const allLabels=[...new Set(db.books.flatMap(x=>x.labels))];
   const allSeries=[...new Set(db.books.map(x=>x.series).filter(Boolean))];
   const el=document.createElement('div');el.className='sheet';el.id='sheet';
@@ -315,8 +411,14 @@ function openEdit(id){
   <div class="sbody">
   <div class="card"><label>ISBN（本の裏のバーコード）</label>
     <div class="irow"><input id="isbn" inputmode="numeric" placeholder="978-4-..." value="${esc(cur.isbn)}"><button id="scanbtn">📷 読取</button><button id="fetchbtn" class="pri">取得</button></div>
-    <div class="note" id="msg" style="margin-top:6px">ISBNを入れて「取得」で書名などを自動入力します。</div></div>
+    <div class="note" id="msg" style="margin-top:6px">ISBNを入れて「取得」で書名などを自動入力します。</div>
+    <div class="note" id="sharenote"></div>
+    ${id?'':`<label style="margin-top:12px">共有された本を登録（リンクやテキストを貼り付け）</label><div class="irow"><input id="pasteshare" placeholder="共有リンク・共有テキスト・ISBN"><button id="pastebtn" class="pri">読込</button></div>`}</div>
   <h2>書籍情報</h2><div class="card">
+    <label>表紙画像</label>
+    <div class="covrow"><div class="covprev" id="covprev">📕</div>
+      <div class="covbtns"><button id="covfile">📷 撮影・選択</button><button id="covauto">🔄 自動取得</button><button id="covdel" class="danger">削除</button></div></div>
+    <input type="file" id="covinput" accept="image/*" hidden>
     <label>書名</label><input id="title" value="${esc(cur.title)}">
     <label>著者名</label><input id="author" value="${esc(cur.author)}">
     <label>出版社</label><input id="publisher" value="${esc(cur.publisher)}">
@@ -326,7 +428,9 @@ function openEdit(id){
     <label>巻数（例: 3 / 上 / 完結編）</label><input id="volume" value="${esc(cur.volume)}">
     <label>日本十進分類法 (NDC)</label>
     <div class="irow"><select id="ndcm" style="width:55%"><option value="">主類を選択</option>${NDC.map((n,i)=>`<option value="${i}">${i} ${n}</option>`).join('')}</select><input id="ndc" value="${esc(cur.ndc)}" inputmode="decimal" placeholder="913.6"></div>
-    <div class="note">自動取得できない場合は、主類を選ぶか分類番号を直接入力してください。</div></div>
+    <div class="note">自動取得できない場合は、主類を選ぶか分類番号を直接入力してください。</div>
+    <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:8px"><button id="sharebtn">📤 この本の情報を共有</button>
+    <div class="note">共有されるのは書名・著者名・出版社・ISBNのみです（メモ・評価・価格などは含まれません）。</div></div></div>
   <h2>記録</h2><div class="card">
     <label>フォルダ</label><select id="folder">${db.folders.map(f=>`<option value="${f.id}" ${cur.folder===f.id?'selected':''}>${esc(f.name)}</option>`).join('')}</select>
     <label>ラベル（「〇〇からの推薦」「本屋大賞受賞作」など）</label>
@@ -378,6 +482,49 @@ function openEdit(id){
     }
     if(!g('#ndc').value.trim()&&last.ndc){g('#ndc').value=last.ndc;g('#ndc').dispatchEvent(new Event('input'))}
   };
+  /* 表紙 */
+  const showCov=()=>{const s=curLocal||cur.cover;g('#covprev').innerHTML=s?`<img src="${esc(s)}" onerror="this.parentNode.textContent='📕'">`:'📕'};
+  refreshCov=showCov;showCov();
+  g('#covfile').onclick=()=>g('#covinput').click();
+  g('#covinput').onchange=async e=>{
+    const f=e.target.files[0];e.target.value='';if(!f)return;
+    const u=URL.createObjectURL(f);
+    try{curLocal=await resizeToDataURL(u);showCov();g('#msg').textContent='表紙画像を登録しました（「保存」で確定します）。'}
+    catch(err){alert('この画像は読み込めませんでした')}
+    URL.revokeObjectURL(u);
+  };
+  g('#covauto').onclick=async()=>{
+    const isbn=toIsbn13(g('#isbn').value),msg=g('#msg');
+    if(!isbn){msg.textContent='表紙の自動取得にはISBNが必要です。';return}
+    msg.textContent='表紙を探しています…';
+    const u=await findCover(isbn);
+    if(!$('#sheet'))return;
+    if(u){cur.cover=u;curLocal='';showCov();msg.textContent='表紙が見つかりました。'}
+    else msg.textContent='表紙が見つかりませんでした。「撮影・選択」で登録できます。';
+  };
+  g('#covdel').onclick=()=>{curLocal='';cur.cover='';showCov()};
+  /* 共有 */
+  const applyShare=s=>{
+    if(s.isbn)g('#isbn').value=s.isbn;
+    if(s.title)g('#title').value=s.title;
+    if(s.author)g('#author').value=s.author;
+    if(s.publisher)g('#publisher').value=s.publisher;
+    g('#msg').textContent='共有された本の情報を読み込みました。内容を確認して保存してください。';
+    if(s.isbn&&toIsbn13(s.isbn))lookup(s.isbn);
+  };
+  g('#sharebtn').onclick=()=>shareBook({isbn:g('#isbn').value.replace(/[^0-9Xx]/g,''),title:g('#title').value.trim(),author:g('#author').value.trim(),publisher:g('#publisher').value.trim()});
+  const pb=g('#pastebtn');
+  if(pb)pb.onclick=()=>{
+    const t=g('#pasteshare').value;
+    let s=parseShare(t);
+    if(!s){const m=/97[89](?:[-\s]?\d){10}/.exec(t);if(m)s={isbn:m[0].replace(/\D/g,''),title:'',author:'',publisher:''}}
+    if(!s){g('#msg').textContent='共有リンクまたはISBNを読み取れませんでした。';return}
+    applyShare(s);g('#pasteshare').value='';
+  };
+  if(prefill){
+    applyShare(prefill);
+    if(!isStandalone())g('#sharenote').textContent='ブラウザで開いています。ホーム画面に追加したアプリに登録したい場合は、共有リンクをコピーして、アプリの「本を登録」画面にある貼り付け欄から読み込んでください（ブラウザとアプリではデータが別々に保存されます）。';
+  }
   g('#x').onclick=closeSheet;
   g('#scanbtn').onclick=startScan;
   g('#fetchbtn').onclick=()=>lookup(g('#isbn').value);
@@ -389,10 +536,14 @@ function openEdit(id){
     const nb={...cur,isbn,title:v('#title'),author:v('#author'),publisher:v('#publisher'),pubdate:v('#pubdate').replace(/-/g,'/'),ndc:v('#ndc'),series:v('#series'),volume:v('#volume'),price:parsePrice(v('#price')),
       folder:g('#folder').value,labels:curLabels,bought:g('#bought').value,place:v('#place'),start:g('#start').value,end:g('#end').value,rating:curRating,memo:g('#memo').value};
     if(nb.id){db.books[db.books.findIndex(x=>x.id===nb.id)]=nb}else{nb.id=uid();nb.added=Date.now();db.books.push(nb)}
-    save();closeSheet();render();
+    save();
+    const cid=nb.id,loc=curLocal;
+    if(loc){covers[cid]=loc;covPut(cid,loc).catch(()=>{})}
+    else{delete covers[cid];covDel(cid).catch(()=>{});if(nb.cover)cacheRemote(cid,nb.cover)}
+    closeSheet();render();
   };
   const del=g('#delbook');
-  if(del)del.onclick=()=>{if(confirm('「'+(cur.title||'この本')+'」を削除しますか？')){db.books=db.books.filter(x=>x.id!==cur.id);save();closeSheet();render()}};
+  if(del)del.onclick=()=>{if(confirm('「'+(cur.title||'この本')+'」を削除しますか？')){const did=cur.id;db.books=db.books.filter(x=>x.id!==did);save();delete covers[did];covDel(did).catch(()=>{});closeSheet();render()}};
 }
 function closeSheet(){stopScan();$('#sheet')?.remove();document.body.style.overflow=''}
 
@@ -478,10 +629,16 @@ async function lookup(raw){
     }catch(e){}
   }
   if(!got.length){msg.textContent='書誌情報が見つかりませんでした。手入力してください（ISBNは保存されます）。';return}
+  if(!$('#sheet'))return;
   ['title','author','publisher','pubdate'].forEach(k=>{if(info[k])$('#'+k).value=info[k]});
-  if(info.cover)cur.cover=info.cover;
+  if(info.cover&&!curLocal){cur.cover=info.cover;refreshCov()}
   if(info.ndc){$('#ndc').value=info.ndc;$('#ndc').dispatchEvent(new Event('input'))}
   msg.textContent='取得しました（'+got.join('・')+'）。'+(info.ndc?'':'NDCは自動取得できなかったため、手動で選択してください。');
+  if(!cur.cover&&!curLocal){
+    const u=await findCover(isbn);
+    if(!$('#sheet'))return;
+    if(u&&!curLocal){cur.cover=u;refreshCov();msg.textContent+=' 表紙も取得しました。'}
+  }
 }
 
 /* ---------- イベント ---------- */
@@ -529,12 +686,12 @@ function doAct(act,id){
       db.folders=db.folders.filter(x=>x.id!==id);if(filterFolder===id)filterFolder='all';save();render();
     }
   }
-  if(act==='export')download(`bookshelf_${today()}.json`,new Blob([JSON.stringify(db,null,1)],{type:'application/json'}));
+  if(act==='export')download(`bookshelf_${today()}.json`,new Blob([JSON.stringify({...db,covers},null,1)],{type:'application/json'}));
   if(act==='csv')exportCsv();
   if(act==='pick'){drawPick(pickId);render()}
   if(act==='import')$('#imp').click();
   if(act==='wipe'&&confirm('全ての本とフォルダを削除します。元に戻せません。よろしいですか？')&&confirm('本当に削除しますか？')){
-    db=normalize({folders:[],books:[]});save();filterFolder='all';render();
+    db=normalize({folders:[],books:[]});save();covers={};covClear().catch(()=>{});filterFolder='all';render();
   }
 }
 function download(name,blob){
@@ -562,7 +719,13 @@ function importData(file){
     try{
       const d=JSON.parse(r.result);
       if(!d||!Array.isArray(d.books))throw 0;
-      if(confirm(`${d.books.length}冊のデータを読み込みます。現在のデータは置き換えられます。`)){db=normalize(d);save();filterFolder='all';render()}
+      if(confirm(`${d.books.length}冊のデータを読み込みます。現在のデータは置き換えられます。`)){
+        const cv=d.covers&&typeof d.covers==='object'?d.covers:{};delete d.covers;
+        db=normalize(d);save();covers={};filterFolder='all';render();
+        covClear().catch(()=>{}).then(()=>Promise.all(Object.entries(cv)
+          .filter(([id,v])=>typeof v==='string'&&v.startsWith('data:image/')&&db.books.some(b=>b.id===id))
+          .map(([id,v])=>{covers[id]=v;return covPut(id,v).catch(()=>{})}))).then(()=>render());
+      }
     }catch(e){alert('読み込めないファイルです')}
   };
   r.readAsText(file);
@@ -571,6 +734,8 @@ function importData(file){
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
 render();
+covAll().then(m=>{covers=m||{};if(['shelf','search','stats'].includes(view))render()}).catch(()=>{});
+{const sh=parseShare(location.hash);if(sh){history.replaceState(null,'',location.href.split('#')[0]);openEdit(null,sh)}}
 </script>
 </body>
 </html>
