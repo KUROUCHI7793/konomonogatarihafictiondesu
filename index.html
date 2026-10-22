@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="マイ本棚">
+<meta name="theme-color" content="#f2f2f7">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>マイ本棚</title>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+<style>
+:root{--bg:#f2f2f7;--card:#fff;--tx:#1c1c1e;--sub:#8e8e93;--ac:#0a6cff;--line:#e5e5ea;--danger:#ff3b30;--star:#ffb400}
+@media(prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--tx:#f2f2f7;--line:#38383a;--ac:#4c9aff}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 -apple-system,"Hiragino Sans",sans-serif}
+#main{padding:calc(env(safe-area-inset-top) + 10px) 12px calc(90px + env(safe-area-inset-bottom))}
+h1{font-size:28px;margin:6px 4px 12px}
+h2{font-size:15px;color:var(--sub);margin:18px 4px 6px;font-weight:600}
+.card{background:var(--card);border-radius:12px;padding:12px;margin-bottom:10px}
+.note{color:var(--sub);font-size:13px}
+.empty{text-align:center;color:var(--sub);padding:40px 10px}
+button{font:inherit;color:var(--ac);background:none;border:0;padding:8px 10px;border-radius:8px}
+button.pri{font-weight:700}
+button.danger{color:var(--danger)}
+button.fill{background:var(--ac);color:#fff}
+input,select,textarea{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%;-webkit-appearance:none;appearance:none}
+textarea{min-height:110px}
+label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+label:first-child{margin-top:0}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:4px}
+.chips button{white-space:nowrap;background:var(--card);color:var(--tx);padding:6px 12px;border-radius:16px;font-size:14px}
+.chips button.on{background:var(--ac);color:#fff}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.row select{width:auto;flex:1}
+.book{display:flex;gap:10px}
+.book img,.ph{width:52px;height:74px;object-fit:cover;border-radius:4px;flex:none;background:var(--bg)}
+.ph{display:flex;align-items:center;justify-content:center;font-size:26px}
+.bi{min-width:0;flex:1}
+.bt{font-weight:700;line-height:1.3}
+.bs{font-size:13px;color:var(--sub)}
+.bm{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.badge{font-size:11px;background:var(--bg);border-radius:6px;padding:1px 6px;color:var(--sub)}
+.badge.f{color:var(--ac)}.badge.l{background:#ffe9b3;color:#6b4a00}
+.stars{color:var(--star);font-size:13px}
+#tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:20}
+#tabs button{flex:1;color:var(--sub);font-size:11px;padding:8px 0}
+#tabs button b{display:block;font-size:20px;font-weight:400}
+#tabs button.on{color:var(--ac)}
+#fab{position:fixed;right:16px;bottom:calc(72px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:28px;background:var(--ac);color:#fff;font-size:30px;line-height:1;box-shadow:0 4px 12px #0004;z-index:21;padding:0}
+.sheet{position:fixed;inset:0;background:var(--bg);z-index:50;overflow:auto;-webkit-overflow-scrolling:touch}
+.bar{position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;background:var(--card);padding:calc(env(safe-area-inset-top) + 6px) 8px 6px;border-bottom:1px solid var(--line);z-index:2}
+.sbody{padding:12px 12px calc(40px + env(safe-area-inset-bottom))}
+.irow,.drow{display:flex;gap:6px}
+.irow button{white-space:nowrap}
+.dfmt{font-size:12px;color:var(--sub);margin-top:2px;min-height:16px}
+#stars span{font-size:34px;color:var(--line);padding:0 4px}
+#stars span.on{color:var(--star)}
+.tag{display:inline-flex;align-items:center;gap:4px;background:#ffe9b3;color:#6b4a00;border-radius:12px;padding:3px 10px;margin:0 6px 6px 0;font-size:14px}
+#scan{position:fixed;inset:0;background:#000;z-index:60;display:flex;flex-direction:column}
+#scan .t{color:#fff;text-align:center;padding:calc(env(safe-area-inset-top) + 14px) 12px 8px}
+#reader{flex:1}
+#scan button{color:#fff;font-size:17px;padding:16px}
+.frow{display:flex;align-items:center;gap:4px}
+.frow .fn{flex:1;padding:6px 0}
+.frow .fn span{color:var(--sub);margin-left:8px;font-size:13px}
+.badge.s{color:#2e7d32}
+.mrow{display:flex;align-items:center;gap:8px;font-size:14px;margin:5px 0}
+.mrow .m{width:34px;color:var(--sub)}
+.mrow .bg{flex:1;height:14px;background:var(--bg);border-radius:7px;overflow:hidden}
+.mrow .bg i{display:block;height:100%;background:var(--ac);border-radius:7px}
+.mrow .v{width:100px;text-align:right}
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t td,table.t th{padding:7px 4px;border-bottom:1px solid var(--line);text-align:right;font-weight:400}
+table.t th{color:var(--sub);font-size:12px}
+table.t th:first-child,table.t td:first-child{text-align:left}
+.ser{padding:9px 0;border-bottom:1px solid var(--line)}
+.ser:last-child{border-bottom:0}
+.ser .sn{font-weight:700}
+</style>
+</head>
+<body>
+<div id="main"></div>
+<button id="fab" aria-label="本を登録">＋</button>
+<nav id="tabs">
+<button data-v="shelf"><b>📚</b>本棚</button>
+<button data-v="search"><b>🔍</b>検索</button>
+<button data-v="folders"><b>🗂</b>フォルダ</button>
+<button data-v="stats"><b>📊</b>集計</button>
+<button data-v="settings"><b>⚙️</b>設定</button>
+</nav>
+<script>
+const NDC=['総記','哲学','歴史','社会科学','自然科学','技術','産業','芸術','言語','文学'];
+const KEY='mybookshelf_v1';
+const DEF=[['f1','気になっている'],['f2','購入済'],['f3','積読中'],['f4','読んでいる'],['f5','読了']];
+const $=q=>document.querySelector(q);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const today=()=>{const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`};
+const fmt=v=>v?v.replace(/-/g,'/'):'';
+
+function normalize(d){
+  d.folders=d.folders||[];
+  DEF.forEach(([id,name])=>{if(!d.folders.find(f=>f.id===id))d.folders.push({id,name,fixed:true})});
+  d.folders.forEach(f=>{if(DEF.some(x=>x[0]===f.id))f.fixed=true});
+  d.folders.sort((a,b)=>{const ia=DEF.findIndex(x=>x[0]===a.id),ib=DEF.findIndex(x=>x[0]===b.id);return (ia<0?99:ia)-(ib<0?99:ib)});
+  d.books=(d.books||[]).map(b=>({id:b.id||uid(),isbn:'',title:'',author:'',publisher:'',pubdate:'',ndc:'',cover:'',folder:'f1',bought:'',place:'',start:'',end:'',rating:0,memo:'',labels:[],price:'',series:'',volume:'',added:Date.now(),...b}));
+  return d;
+}
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.books)return normalize(d)}catch(e){}return normalize({folders:[],books:[]})}
+let db=load();
+function save(){localStorage.setItem(KEY,JSON.stringify(db))}
+
+let view='shelf',filterFolder='all',sortBy='added';
+const blankS=()=>({q:'',target:'all',ndc:'',folder:'',label:'',series:'',rating:'',pmin:'',pmax:'',dtype:'bought',from:'',to:''});
+let S=blankS();
+let statYear=null,pickFolder='f3',pickId=null;
+const yen=n=>'¥'+Number(n).toLocaleString('ja-JP');
+const pn=v=>{const n=parseInt(String(v).normalize('NFKC').replace(/[^\d]/g,''),10);return isNaN(n)?null:n};
+const parsePrice=v=>{const n=pn(v);return n==null?'':n};
+const hasPrice=b=>b.price!==''&&b.price!=null;
+const volCmp=(a,b)=>((parseFloat(a.volume)||0)-(parseFloat(b.volume)||0))||(a.volume||'').localeCompare(b.volume||'','ja');
+
+/* ---------- 共通 ---------- */
+function cardHtml(b){
+  const f=db.folders.find(x=>x.id===b.folder);
+  return `<div class="card book" data-id="${b.id}">${b.cover?`<img src="${esc(b.cover)}" loading="lazy" onerror="this.outerHTML='<div class=ph>📕</div>'">`:'<div class="ph">📕</div>'}
+  <div class="bi"><div class="bt">${esc(b.title||'(無題)')}</div>
+  <div class="bs">${esc(b.author)}${b.publisher?' / '+esc(b.publisher):''}${b.pubdate?' ('+esc(b.pubdate)+')':''}</div>
+  <div class="bm">${b.series?`<span class="badge s">📚 ${esc(b.series)}${b.volume?' #'+esc(b.volume):''}</span>`:''}${b.ndc?`<span class="badge">NDC ${esc(b.ndc)}</span>`:''}${f?`<span class="badge f">${esc(f.name)}</span>`:''}${b.rating?`<span class="stars">${'★'.repeat(b.rating)}</span>`:''}</div>
+  ${b.labels.length?`<div class="bm">${b.labels.map(l=>`<span class="badge l">${esc(l)}</span>`).join('')}</div>`:''}</div></div>`;
+}
+function sortBooks(l){
+  const t=(a,b)=>(a||'').localeCompare(b||'','ja');
+  const m={added:(a,b)=>b.added-a.added,title:(a,b)=>t(a.title,b.title),rating:(a,b)=>(b.rating||0)-(a.rating||0),end:(a,b)=>t(b.end,a.end),pub:(a,b)=>t(b.pubdate,a.pubdate),series:(a,b)=>(!a.series-!b.series)||t(a.series,b.series)||volCmp(a,b)};
+  l.sort(m[sortBy]||m.added);
+}
+function render(){
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
+  $('#fab').style.display=(view==='settings'||view==='stats')?'none':'';
+  ({shelf:rShelf,search:rSearch,folders:rFolders,stats:rStats,settings:rSettings})[view]();
+}
+
+/* ---------- 本棚 ---------- */
+function rShelf(){
+  const cnt=id=>db.books.filter(b=>b.folder===id).length;
+  const list=db.books.filter(b=>filterFolder==='all'||b.folder===filterFolder);
+  sortBooks(list);
+  $('#main').innerHTML=`<h1>本棚</h1>
+  <div class="chips"><button data-f="all" class="${filterFolder==='all'?'on':''}">すべて ${db.books.length}</button>${db.folders.map(f=>`<button data-f="${f.id}" class="${filterFolder===f.id?'on':''}">${esc(f.name)} ${cnt(f.id)}</button>`).join('')}</div>
+  <div class="row"><span class="note">並び順</span><select id="sort">
+  ${[['added','登録が新しい順'],['title','書名順'],['rating','評価が高い順'],['end','読了日が新しい順'],['pub','出版年月が新しい順'],['series','シリーズ・巻数順']].map(([v,n])=>`<option value="${v}" ${sortBy===v?'selected':''}>${n}</option>`).join('')}</select></div>
+  ${list.length?list.map(cardHtml).join(''):'<div class="empty">本がありません。<br>右下の＋から登録できます。</div>'}`;
+}
+
+/* ---------- 検索 ---------- */
+function matches(b,s){
+  if(s.q){
+    const q=s.q.toLowerCase();
+    const map={title:[b.title],author:[b.author],publisher:[b.publisher],isbn:[b.isbn],memo:[b.memo],place:[b.place],label:b.labels,series:[b.series],
+      all:[b.title,b.author,b.publisher,b.isbn,b.memo,b.place,b.ndc,b.series,...b.labels]};
+    if(!(map[s.target]||[]).some(v=>(v||'').toLowerCase().includes(q)))return false;
+  }
+  if(s.ndc&&!(b.ndc||'').startsWith(s.ndc))return false;
+  if(s.folder&&b.folder!==s.folder)return false;
+  if(s.label&&!b.labels.includes(s.label))return false;
+  if(s.series&&b.series!==s.series)return false;
+  if(s.pmin!==''||s.pmax!==''){
+    if(!hasPrice(b))return false;
+    const lo=pn(s.pmin),hi=pn(s.pmax);
+    if(lo!=null&&b.price<lo)return false;
+    if(hi!=null&&b.price>hi)return false;
+  }
+  if(s.rating==='0'&&b.rating)return false;
+  if(s.rating&&s.rating!=='0'&&(b.rating||0)<+s.rating)return false;
+  if(s.from||s.to){
+    const raw={bought:b.bought,start:b.start,end:b.end,pub:b.pubdate}[s.dtype]||'';
+    const dv=raw.replace(/\//g,'-');
+    if(!dv)return false;
+    const k=dv.length;
+    if(s.from&&dv<s.from.slice(0,k))return false;
+    if(s.to&&dv>s.to.slice(0,k))return false;
+  }
+  return true;
+}
+function rSearch(){
+  const labels=[...new Set(db.books.flatMap(b=>b.labels))].sort();
+  const seriesList=[...new Set(db.books.map(b=>b.series).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
+  const opt=(arr,cur)=>arr.map(([v,n])=>`<option value="${esc(v)}" ${cur===v?'selected':''}>${esc(n)}</option>`).join('');
+  $('#main').innerHTML=`<h1>検索</h1><div class="card" id="sf">
+  <label>キーワード</label>
+  <div class="irow"><select id="s_target" style="width:40%">${opt([['all','すべて'],['title','書名'],['author','著者名'],['publisher','出版社'],['isbn','ISBN'],['series','シリーズ'],['label','ラベル'],['place','購入場所'],['memo','メモ']],S.target)}</select><input id="s_q" value="${esc(S.q)}" placeholder="キーワード"></div>
+  <label>日本十進分類法 (例: 9 / 91 / 913)</label><input id="s_ndc" value="${esc(S.ndc)}" inputmode="decimal" placeholder="分類番号の先頭から一致">
+  <label>フォルダ</label><select id="s_folder">${opt([['','指定なし'],...db.folders.map(f=>[f.id,f.name])],S.folder)}</select>
+  <label>ラベル</label><select id="s_label">${opt([['','指定なし'],...labels.map(l=>[l,l])],S.label)}</select>
+  <label>シリーズ</label><select id="s_series">${opt([['','指定なし'],...seriesList.map(l=>[l,l])],S.series)}</select>
+  <label>購入価格（円）</label><div class="drow"><input id="s_pmin" inputmode="numeric" placeholder="下限" value="${esc(S.pmin)}"><span style="align-self:center">〜</span><input id="s_pmax" inputmode="numeric" placeholder="上限" value="${esc(S.pmax)}"></div>
+  <label>評価</label><select id="s_rating">${opt([['','指定なし'],['5','★5'],['4','★4以上'],['3','★3以上'],['2','★2以上'],['1','★1以上'],['0','未評価']],S.rating)}</select>
+  <label>日付で絞り込み</label>
+  <select id="s_dtype">${opt([['bought','購入日'],['start','読始日'],['end','読了日'],['pub','出版年月']],S.dtype)}</select>
+  <div class="drow" style="margin-top:6px"><input type="date" id="s_from" value="${S.from}"><span style="align-self:center">〜</span><input type="date" id="s_to" value="${S.to}"></div>
+  <div style="text-align:right;margin-top:6px"><button id="s_reset" class="danger">条件をクリア</button></div></div>
+  <div id="res"></div>`;
+  runSearch();
+}
+function runSearch(){
+  const l=db.books.filter(b=>matches(b,S));sortBooks(l);
+  const any=Object.entries(S).some(([k,v])=>v&&!['target','dtype'].includes(k));
+  $('#res').innerHTML=`<div class="note" style="margin:0 4px 8px">${any?l.length+'件ヒット':'条件を入れると絞り込みます（全'+db.books.length+'冊）'}</div>`+l.map(cardHtml).join('');
+}
+
+/* ---------- フォルダ ---------- */
+function rFolders(){
+  $('#main').innerHTML=`<h1>フォルダ</h1>${db.folders.map(f=>`<div class="card frow"><div class="fn" data-f="${f.id}">${esc(f.name)}<span>${db.books.filter(b=>b.folder===f.id).length}冊</span></div>
+  ${f.fixed?'<span class="note">基本</span>':`<button data-act="ren" data-id="${f.id}">名前変更</button><button class="danger" data-act="del" data-id="${f.id}">削除</button>`}</div>`).join('')}
+  <h2>フォルダを追加</h2><div class="card irow"><input id="nf" placeholder="フォルダ名 (例: 貸出中、再読したい)"><button class="fill" data-act="addf">追加</button></div>`;
+}
+
+/* ---------- 集計 ---------- */
+function drawPick(avoid){
+  const pool=db.books.filter(b=>b.folder===pickFolder);
+  const c=pool.length>1?pool.filter(b=>b.id!==avoid):pool;
+  pickId=c.length?c[Math.floor(Math.random()*c.length)].id:null;
+}
+function rStats(){
+  /* 次に読む本 */
+  if(!db.books.some(b=>b.id===pickId&&b.folder===pickFolder))drawPick();
+  const pick=db.books.find(b=>b.id===pickId);
+  /* 購入額 */
+  const paid=db.books.filter(hasPrice);
+  const dated=paid.filter(b=>b.bought);
+  const years=[...new Set(dated.map(b=>b.bought.slice(0,4)))].sort().reverse();
+  const thisY=String(new Date().getFullYear());
+  if(!years.length)statYear=null;
+  else if(!years.includes(String(statYear)))statYear=+(years.includes(thisY)?thisY:years[0]);
+  const sum=l=>l.reduce((a,b)=>a+b.price,0);
+  const months=[];
+  for(let m=1;m<=12;m++){
+    const l=dated.filter(b=>b.bought.slice(0,4)===String(statYear)&&+b.bought.slice(5,7)===m);
+    months.push({m,n:l.length,s:sum(l)});
+  }
+  const mx=Math.max(1,...months.map(x=>x.s));
+  const yearRows=years.map(y=>{const l=dated.filter(b=>b.bought.startsWith(y));return {y,n:l.length,s:sum(l)}});
+  const noPrice=db.books.length-paid.length, noDate=paid.length-dated.length;
+  /* シリーズ */
+  const ser={};
+  db.books.filter(b=>b.series).forEach(b=>(ser[b.series]=ser[b.series]||[]).push(b));
+  const names=Object.keys(ser).sort((a,b)=>a.localeCompare(b,'ja'));
+  const serHtml=names.map(n=>{
+    const l=ser[n].slice().sort(volCmp);
+    const vols=l.map(b=>b.volume).filter(Boolean);
+    const nums=vols.every(v=>/^\d+$/.test(v))&&vols.length===l.length?vols.map(Number):null;
+    let miss='';
+    if(nums&&nums.length>=2){
+      const set=new Set(nums),mxv=Math.max(...nums),ms=[];
+      for(let i=1;i<=mxv&&ms.length<15;i++)if(!set.has(i))ms.push(i);
+      if(ms.length)miss=`<div class="note">未登録の巻: ${ms.join(', ')}</div>`;
+    }
+    return `<div class="ser" data-series="${esc(n)}"><div class="sn">${esc(n)}</div>
+      <div class="note">${l.length}冊登録・読了${l.filter(b=>b.end).length}冊${vols.length?' ／ 巻: '+esc(vols.join(', ')):''}</div>${miss}</div>`;
+  }).join('');
+  $('#main').innerHTML=`<h1>集計</h1>
+  <h2>次に読む本</h2><div class="card">
+    <div class="row" style="margin-bottom:0"><span class="note">候補フォルダ</span><select id="pf">${db.folders.map(f=>`<option value="${f.id}" ${pickFolder===f.id?'selected':''}>${esc(f.name)}（${db.books.filter(b=>b.folder===f.id).length}）</option>`).join('')}</select></div></div>
+  ${pick?cardHtml(pick):'<div class="card empty" style="padding:24px 10px">このフォルダに本がありません。</div>'}
+  <div style="text-align:center;margin-bottom:6px"><button class="fill" data-act="pick">🎲 もう一度引く</button></div>
+  <h2>購入額の集計</h2>
+  ${years.length?`<div class="card">
+    <div class="row"><b>${esc(statYear)}年 月別</b><select id="sy">${years.map(y=>`<option value="${y}" ${String(statYear)===y?'selected':''}>${y}年</option>`).join('')}</select></div>
+    ${months.map(x=>`<div class="mrow"><span class="m">${x.m}月</span><span class="bg"><i style="width:${Math.round(x.s/mx*100)}%"></i></span><span class="v">${x.s?yen(x.s):'-'}${x.n?` <span class="note">${x.n}冊</span>`:''}</span></div>`).join('')}
+    <div style="text-align:right;margin-top:6px"><b>${statYear}年 合計 ${yen(sum(dated.filter(b=>b.bought.startsWith(String(statYear)))))}</b></div></div>
+  <div class="card"><b>年別</b><table class="t"><tr><th>年</th><th>冊数</th><th>合計</th><th>平均</th></tr>
+    ${yearRows.map(r=>`<tr><td>${r.y}年</td><td>${r.n}</td><td>${yen(r.s)}</td><td>${yen(Math.round(r.s/r.n))}</td></tr>`).join('')}
+    <tr><td><b>全期間</b></td><td><b>${dated.length}</b></td><td><b>${yen(sum(dated))}</b></td><td><b>${yen(Math.round(sum(dated)/dated.length))}</b></td></tr></table></div>`
+  :'<div class="card empty" style="padding:24px 10px">購入価格と購入日を入力した本があると、ここに集計されます。</div>'}
+  <div class="note" style="margin:0 4px">価格未入力: ${noPrice}冊${noDate?` ／ 価格はあるが購入日が未入力: ${noDate}冊（集計に含まれません）`:''}</div>
+  <h2>シリーズ一覧（タップで検索）</h2>
+  <div class="card">${serHtml||'<div class="note">本の編集画面でシリーズ名を入れると、ここにまとまります。</div>'}</div>`;
+}
+
+/* ---------- 設定 ---------- */
+function rSettings(){
+  const y=new Date().getFullYear();
+  const read=db.books.filter(b=>b.end);
+  const thisYear=read.filter(b=>b.end.startsWith(String(y))).length;
+  const rated=db.books.filter(b=>b.rating);
+  const avg=rated.length?(rated.reduce((a,b)=>a+b.rating,0)/rated.length).toFixed(2):'-';
+  $('#main').innerHTML=`<h1>設定</h1>
+  <h2>統計</h2><div class="card">登録冊数: <b>${db.books.length}</b>冊<br>読了(読了日あり): <b>${read.length}</b>冊（${y}年: <b>${thisYear}</b>冊）<br>平均評価: <b>${avg}</b></div>
+  <h2>バックアップ</h2><div class="card"><p class="note" style="margin-top:0">データはこのiPhoneの中だけに保存されています。機種変更や万一に備え、定期的に書き出してください（「ファイル」アプリやiCloud Driveに保存すると安心です）。</p>
+  <button class="fill" data-act="export">データを書き出す (JSON)</button>
+  <button data-act="csv">CSVで書き出す（Excel等で見る用）</button>
+  <p class="note">CSVは閲覧・集計用です。バックアップの復元にはJSONを使ってください。</p>
+  <button data-act="import">データを読み込む</button><input type="file" id="imp" accept="application/json,.json" hidden></div>
+  <h2>データ削除</h2><div class="card"><button class="danger" data-act="wipe">全データを削除</button></div>`;
+}
+
+/* ---------- 登録・編集シート ---------- */
+let cur,curLabels,curRating,scanner=null;
+function dateRow(id,label,val){
+  return `<label>${label}</label><div class="drow"><input type="date" id="${id}" value="${val||''}"><button type="button" data-today="${id}">今日</button><button type="button" data-clear="${id}">✕</button></div><div class="dfmt" id="${id}_f">${fmt(val)}</div>`;
+}
+function openEdit(id){
+  const b=id?db.books.find(x=>x.id===id):null;
+  cur=b?{...b}:{id:null,isbn:'',title:'',author:'',publisher:'',pubdate:'',ndc:'',cover:'',folder:filterFolder!=='all'?filterFolder:'f1',bought:'',place:'',start:'',end:'',rating:0,memo:'',labels:[],price:'',series:'',volume:'',added:Date.now()};
+  curLabels=[...(cur.labels||[])];curRating=cur.rating||0;
+  const allLabels=[...new Set(db.books.flatMap(x=>x.labels))];
+  const allSeries=[...new Set(db.books.map(x=>x.series).filter(Boolean))];
+  const el=document.createElement('div');el.className='sheet';el.id='sheet';
+  el.innerHTML=`<div class="bar"><button id="x">キャンセル</button><b>${id?'本の編集':'本を登録'}</b><button id="sv" class="pri">保存</button></div>
+  <div class="sbody">
+  <div class="card"><label>ISBN（本の裏のバーコード）</label>
+    <div class="irow"><input id="isbn" inputmode="numeric" placeholder="978-4-..." value="${esc(cur.isbn)}"><button id="scanbtn">📷 読取</button><button id="fetchbtn" class="pri">取得</button></div>
+    <div class="note" id="msg" style="margin-top:6px">ISBNを入れて「取得」で書名などを自動入力します。</div></div>
+  <h2>書籍情報</h2><div class="card">
+    <label>書名</label><input id="title" value="${esc(cur.title)}">
+    <label>著者名</label><input id="author" value="${esc(cur.author)}">
+    <label>出版社</label><input id="publisher" value="${esc(cur.publisher)}">
+    <label>出版年月 (yyyy/mm)</label><input id="pubdate" value="${esc(cur.pubdate)}" inputmode="numeric" placeholder="2024/05">
+    <label>シリーズ名（任意）</label><input id="series" list="sl" value="${esc(cur.series)}" placeholder="例: ハリー・ポッター">
+    <datalist id="sl">${allSeries.map(l=>`<option value="${esc(l)}">`).join('')}</datalist>
+    <label>巻数（例: 3 / 上 / 完結編）</label><input id="volume" value="${esc(cur.volume)}">
+    <label>日本十進分類法 (NDC)</label>
+    <div class="irow"><select id="ndcm" style="width:55%"><option value="">主類を選択</option>${NDC.map((n,i)=>`<option value="${i}">${i} ${n}</option>`).join('')}</select><input id="ndc" value="${esc(cur.ndc)}" inputmode="decimal" placeholder="913.6"></div>
+    <div class="note">自動取得できない場合は、主類を選ぶか分類番号を直接入力してください。</div></div>
+  <h2>記録</h2><div class="card">
+    <label>フォルダ</label><select id="folder">${db.folders.map(f=>`<option value="${f.id}" ${cur.folder===f.id?'selected':''}>${esc(f.name)}</option>`).join('')}</select>
+    <label>ラベル（「〇〇からの推薦」「本屋大賞受賞作」など）</label>
+    <div id="tags"></div>
+    <div class="irow"><input id="newlabel" list="lbl" placeholder="ラベルを入力"><button id="addlabel" class="pri">追加</button></div>
+    <datalist id="lbl">${allLabels.map(l=>`<option value="${esc(l)}">`).join('')}</datalist>
+    ${dateRow('bought','購入日',cur.bought)}
+    <label>購入価格（円）</label><input id="price" inputmode="numeric" value="${cur.price===''||cur.price==null?'':esc(cur.price)}" placeholder="例: 1650">
+    <label>購入場所</label><input id="place" value="${esc(cur.place)}" placeholder="例: 紀伊國屋書店 梅田本店">
+    ${dateRow('start','読始日',cur.start)}
+    ${dateRow('end','読了日',cur.end)}
+    <label>評価</label><div id="stars">${[1,2,3,4,5].map(n=>`<span data-n="${n}">★</span>`).join('')}</div>
+    <label>メモ</label><textarea id="memo">${esc(cur.memo)}</textarea></div>
+  ${id?'<button class="danger" id="delbook" style="width:100%">この本を削除</button>':''}
+  </div>`;
+  document.body.appendChild(el);document.body.style.overflow='hidden';
+  const g=q=>el.querySelector(q);
+  const paintStars=()=>el.querySelectorAll('#stars span').forEach(s=>s.classList.toggle('on',+s.dataset.n<=curRating));
+  const paintTags=()=>{g('#tags').innerHTML=curLabels.map((l,i)=>`<span class="tag">${esc(l)} <a data-rm="${i}" style="padding:0 2px">✕</a></span>`).join('')};
+  paintStars();paintTags();
+  const syncNdc=()=>{const c=g('#ndc').value.trim()[0];g('#ndcm').value=/\d/.test(c||'')?c:''};syncNdc();
+  g('#ndcm').onchange=e=>{const v=e.target.value,n=g('#ndc');if(v!==''&&n.value.trim()[0]!==v)n.value=v};
+  g('#ndc').oninput=syncNdc;
+  g('#stars').onclick=e=>{const n=e.target.dataset.n;if(!n)return;curRating=curRating===+n?0:+n;paintStars()};
+  g('#tags').onclick=e=>{const i=e.target.dataset.rm;if(i==null)return;curLabels.splice(+i,1);paintTags()};
+  const addLabel=()=>{const v=g('#newlabel').value.trim();if(v&&!curLabels.includes(v))curLabels.push(v);g('#newlabel').value='';paintTags()};
+  g('#addlabel').onclick=addLabel;
+  g('#newlabel').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addLabel()}};
+  el.onclick=e=>{
+    const t=e.target.dataset;
+    if(t.today){g('#'+t.today).value=today();g('#'+t.today+'_f').textContent=fmt(today())}
+    if(t.clear){g('#'+t.clear).value='';g('#'+t.clear+'_f').textContent=''}
+  };
+  ['bought','start','end'].forEach(k=>g('#'+k).onchange=e=>{g('#'+k+'_f').textContent=fmt(e.target.value)});
+  g('#folder').onchange=e=>{
+    const n=db.folders.find(f=>f.id===e.target.value)?.name;
+    if(n==='読んでいる'&&!g('#start').value){g('#start').value=today();g('#start_f').textContent=fmt(today())}
+    if(n==='読了'&&!g('#end').value){g('#end').value=today();g('#end_f').textContent=fmt(today())}
+  };
+  g('#series').onchange=e=>{
+    const n=e.target.value.trim();
+    const same=db.books.filter(x=>x.series===n&&x.id!==cur.id);
+    if(!n||!same.length)return;
+    const last=same.slice().sort((a,b)=>b.added-a.added)[0];
+    ['author','publisher'].forEach(k=>{if(!g('#'+k).value.trim())g('#'+k).value=last[k]||''});
+    if(!g('#volume').value.trim()){
+      const nums=same.map(x=>parseInt(x.volume,10)).filter(x=>x>=0);
+      if(nums.length)g('#volume').value=Math.max(...nums)+1;
+    }
+    if(!g('#ndc').value.trim()&&last.ndc){g('#ndc').value=last.ndc;g('#ndc').dispatchEvent(new Event('input'))}
+  };
+  g('#x').onclick=closeSheet;
+  g('#scanbtn').onclick=startScan;
+  g('#fetchbtn').onclick=()=>lookup(g('#isbn').value);
+  g('#sv').onclick=()=>{
+    const v=q=>g(q).value.trim();
+    const isbn=v('#isbn').replace(/[^0-9Xx]/g,'');
+    if(!v('#title')&&!isbn){alert('書名かISBNを入力してください');return}
+    if(!cur.id&&isbn&&db.books.some(x=>x.isbn===isbn)&&!confirm('同じISBNの本が登録済みです。それでも登録しますか？'))return;
+    const nb={...cur,isbn,title:v('#title'),author:v('#author'),publisher:v('#publisher'),pubdate:v('#pubdate').replace(/-/g,'/'),ndc:v('#ndc'),series:v('#series'),volume:v('#volume'),price:parsePrice(v('#price')),
+      folder:g('#folder').value,labels:curLabels,bought:g('#bought').value,place:v('#place'),start:g('#start').value,end:g('#end').value,rating:curRating,memo:g('#memo').value};
+    if(nb.id){db.books[db.books.findIndex(x=>x.id===nb.id)]=nb}else{nb.id=uid();nb.added=Date.now();db.books.push(nb)}
+    save();closeSheet();render();
+  };
+  const del=g('#delbook');
+  if(del)del.onclick=()=>{if(confirm('「'+(cur.title||'この本')+'」を削除しますか？')){db.books=db.books.filter(x=>x.id!==cur.id);save();closeSheet();render()}};
+}
+function closeSheet(){stopScan();$('#sheet')?.remove();document.body.style.overflow=''}
+
+/* ---------- バーコード読取 ---------- */
+async function startScan(){
+  if(typeof Html5Qrcode==='undefined'){alert('読取ライブラリを読み込めませんでした。通信状態を確認するか、ISBNを手入力してください。');return}
+  const o=document.createElement('div');o.id='scan';
+  o.innerHTML='<div class="t">本の裏のバーコード（978で始まる上段）を枠に合わせてください</div><div id="reader"></div><button id="scanx">閉じる</button>';
+  document.body.appendChild(o);
+  $('#scanx').onclick=stopScan;
+  try{
+    scanner=new Html5Qrcode('reader',{formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],experimentalFeatures:{useBarCodeDetectorIfSupported:true}});
+    await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:300,height:120}},txt=>{
+      if(/^97[89]\d{10}$/.test(txt)){stopScan();$('#isbn').value=txt;lookup(txt)}
+    });
+  }catch(e){stopScan();alert('カメラを起動できませんでした。Safariの設定でカメラを許可するか、ISBNを手入力してください。')}
+}
+async function stopScan(){
+  const s=scanner;scanner=null;
+  if(s){try{await s.stop();s.clear()}catch(e){}}
+  $('#scan')?.remove();
+}
+
+/* ---------- ISBN検索 ---------- */
+function toIsbn13(raw){
+  const d=raw.replace(/[^0-9Xx]/g,'').toUpperCase();
+  if(d.length===13)return d;
+  if(d.length===10){
+    const b='978'+d.slice(0,9);let s=0;
+    for(let i=0;i<12;i++)s+=+b[i]*(i%2?3:1);
+    return b+((10-s%10)%10);
+  }
+  return '';
+}
+function fmtPub(s){
+  s=String(s||'').replace(/[^0-9]/g,'');
+  if(s.length>=6)return s.slice(0,4)+'/'+s.slice(4,6);
+  return s.length===4?s:'';
+}
+async function lookup(raw){
+  const msg=$('#msg');
+  const isbn=toIsbn13(raw);
+  if(!isbn){msg.textContent='ISBNは10桁または13桁で入力してください。';return}
+  $('#isbn').value=isbn;
+  msg.textContent='検索中…';
+  const info={};const got=[];
+  const [obd,ndl]=await Promise.allSettled([
+    fetch('https://api.openbd.jp/v1/get?isbn='+isbn).then(r=>r.json()),
+    fetch('https://ndlsearch.ndl.go.jp/api/opensearch?isbn='+isbn).then(r=>r.text())
+  ]);
+  try{
+    const s=obd.value&&obd.value[0]&&obd.value[0].summary;
+    if(s){
+      info.title=s.title;
+      info.author=(s.author||'').replace(/\/著/g,'').replace(/\/(編著|編|訳|監修|絵|画|原作|写真|イラスト)/g,'（$1）').trim();
+      info.publisher=s.publisher;info.pubdate=fmtPub(s.pubdate);info.cover=s.cover;got.push('openBD');
+    }
+  }catch(e){}
+  try{
+    if(ndl.value){
+      const x=new DOMParser().parseFromString(ndl.value,'text/xml');
+      const item=x.getElementsByTagName('item')[0];
+      if(item){
+        const subs=[...item.getElementsByTagName('dc:subject')];
+        const pick=t=>subs.find(e=>(e.getAttribute('xsi:type')||'').endsWith(t));
+        const n=pick('NDC10')||pick('NDC9')||pick('NDC8');
+        if(n)info.ndc=n.textContent.trim();
+        const t=tag=>(item.getElementsByTagName(tag)[0]||{}).textContent;
+        if(!info.title&&t('title'))info.title=t('title');
+        if(!info.author&&t('dc:creator'))info.author=t('dc:creator').replace(/\s+/g,' ');
+        if(!info.publisher&&t('dc:publisher'))info.publisher=t('dc:publisher');
+        if(!info.pubdate&&t('dcterms:issued'))info.pubdate=fmtPub(t('dcterms:issued'));
+        got.push('国立国会図書館');
+      }
+    }
+  }catch(e){}
+  if(!info.title){
+    try{
+      const r=await fetch('https://www.googleapis.com/books/v1/volumes?q=isbn:'+isbn).then(r=>r.json());
+      const v=r.items&&r.items[0]&&r.items[0].volumeInfo;
+      if(v){info.title=v.title;info.author=(v.authors||[]).join(', ');info.publisher=v.publisher;info.pubdate=fmtPub(v.publishedDate);
+        if(v.imageLinks&&v.imageLinks.thumbnail)info.cover=v.imageLinks.thumbnail.replace('http://','https://');got.push('Google Books')}
+    }catch(e){}
+  }
+  if(!got.length){msg.textContent='書誌情報が見つかりませんでした。手入力してください（ISBNは保存されます）。';return}
+  ['title','author','publisher','pubdate'].forEach(k=>{if(info[k])$('#'+k).value=info[k]});
+  if(info.cover)cur.cover=info.cover;
+  if(info.ndc){$('#ndc').value=info.ndc;$('#ndc').dispatchEvent(new Event('input'))}
+  msg.textContent='取得しました（'+got.join('・')+'）。'+(info.ndc?'':'NDCは自動取得できなかったため、手動で選択してください。');
+}
+
+/* ---------- イベント ---------- */
+$('#fab').onclick=()=>openEdit(null);
+$('#tabs').onclick=e=>{const b=e.target.closest('button');if(b){view=b.dataset.v;render();window.scrollTo(0,0)}};
+$('#main').addEventListener('click',e=>{
+  const f=e.target.closest('[data-f]');
+  if(f){filterFolder=f.dataset.f;view='shelf';render();return}
+  const sr=e.target.closest('[data-series]');
+  if(sr){S=blankS();S.series=sr.dataset.series;view='search';render();return}
+  const a=e.target.closest('[data-act]');
+  if(a){doAct(a.dataset.act,a.dataset.id);return}
+  const bk=e.target.closest('.book');
+  if(bk)openEdit(bk.dataset.id);
+  if(e.target.id==='s_reset'){S=blankS();rSearch()}
+});
+$('#main').addEventListener('input',e=>{
+  if(e.target.id==='s_q'){S.q=e.target.value;runSearch()}
+  if(e.target.id==='s_ndc'){S.ndc=e.target.value.trim();runSearch()}
+  if(e.target.id==='s_pmin'){S.pmin=e.target.value.trim();runSearch()}
+  if(e.target.id==='s_pmax'){S.pmax=e.target.value.trim();runSearch()}
+});
+$('#main').addEventListener('change',e=>{
+  const m={s_target:'target',s_folder:'folder',s_label:'label',s_series:'series',s_rating:'rating',s_dtype:'dtype',s_from:'from',s_to:'to'}[e.target.id];
+  if(m){S[m]=e.target.value;runSearch()}
+  if(e.target.id==='sort'){sortBy=e.target.value;render()}
+  if(e.target.id==='sy'){statYear=+e.target.value;render()}
+  if(e.target.id==='pf'){pickFolder=e.target.value;pickId=null;render()}
+  if(e.target.id==='imp')importData(e.target.files[0]);
+});
+function doAct(act,id){
+  if(act==='addf'){
+    const n=$('#nf').value.trim();if(!n)return;
+    if(db.folders.some(f=>f.name===n)){alert('同名のフォルダがあります');return}
+    db.folders.push({id:'u'+uid(),name:n,fixed:false});save();render();
+  }
+  if(act==='ren'){
+    const f=db.folders.find(x=>x.id===id);const n=prompt('新しいフォルダ名',f.name);
+    if(n&&n.trim()){f.name=n.trim();save();render()}
+  }
+  if(act==='del'){
+    const f=db.folders.find(x=>x.id===id);
+    if(confirm(`「${f.name}」を削除します。中の本は「気になっている」に移動します。`)){
+      db.books.forEach(b=>{if(b.folder===id)b.folder='f1'});
+      db.folders=db.folders.filter(x=>x.id!==id);if(filterFolder===id)filterFolder='all';save();render();
+    }
+  }
+  if(act==='export')download(`bookshelf_${today()}.json`,new Blob([JSON.stringify(db,null,1)],{type:'application/json'}));
+  if(act==='csv')exportCsv();
+  if(act==='pick'){drawPick(pickId);render()}
+  if(act==='import')$('#imp').click();
+  if(act==='wipe'&&confirm('全ての本とフォルダを削除します。元に戻せません。よろしいですか？')&&confirm('本当に削除しますか？')){
+    db=normalize({folders:[],books:[]});save();filterFolder='all';render();
+  }
+}
+function download(name,blob){
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+}
+function exportCsv(){
+  const fn=Object.fromEntries(db.folders.map(f=>[f.id,f.name]));
+  const ds=ts=>{const d=new Date(ts);return isNaN(d)?'':`${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}`};
+  const q=s=>{s=String(s==null?'':s);if(/^[=+\-@]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};
+  const head=['ISBN','書名','著者名','出版社','出版年月','NDC','シリーズ','巻数','フォルダ','ラベル','購入日','購入価格','購入場所','読始日','読了日','評価','メモ','登録日'];
+  const rows=db.books.slice().sort((a,b)=>a.added-b.added).map(b=>[
+    b.isbn?'"=""'+b.isbn+'"""':'""',
+    q(b.title),q(b.author),q(b.publisher),q(b.pubdate),q(b.ndc),q(b.series),q(b.volume),q(fn[b.folder]||''),q(b.labels.join(' / ')),
+    q(fmt(b.bought)),hasPrice(b)?b.price:'',q(b.place),q(fmt(b.start)),q(fmt(b.end)),b.rating||'',q(b.memo),q(ds(b.added))
+  ].join(','));
+  const csv='﻿'+[head.map(q).join(','),...rows].join('\r\n');
+  download(`bookshelf_${today()}.csv`,new Blob([csv],{type:'text/csv;charset=utf-8'}));
+}
+function importData(file){
+  if(!file)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      if(!d||!Array.isArray(d.books))throw 0;
+      if(confirm(`${d.books.length}冊のデータを読み込みます。現在のデータは置き換えられます。`)){db=normalize(d);save();filterFolder='all';render()}
+    }catch(e){alert('読み込めないファイルです')}
+  };
+  r.readAsText(file);
+}
+
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+render();
+</script>
+</body>
+</html>
